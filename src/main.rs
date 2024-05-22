@@ -1,10 +1,17 @@
 use std::fmt;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 use ndarray::Axis;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
 use rand::{rngs::ThreadRng, Rng};
+
+#[derive(Parser)]
+struct Cli {
+    #[clap(long)]
+    n_trials: usize,
+}
 
 type Roll = (usize, usize);
 
@@ -96,10 +103,11 @@ fn odds_multiplier(target: usize) -> usize {
 }
 
 fn main() -> Result<()> {
+    let cli = Cli::parse();
     let mut rng = rand::thread_rng();
     let bet_min = 5;
     let mut roll_counts = vec![];
-    for _ in 1..100 {
+    for _ in 1..cli.n_trials {
         let n_rolls = one_scenario(&mut rng, bet_min);
         roll_counts.push(n_rolls);
     }
