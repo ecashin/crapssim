@@ -2,6 +2,7 @@ use std::fmt;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use log::info;
 use ndarray::Axis;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
@@ -103,6 +104,7 @@ fn odds_multiplier(target: usize) -> usize {
 }
 
 fn main() -> Result<()> {
+    simple_logger::init_with_env().context("setting up logging")?;
     let cli = Cli::parse();
     let mut rng = rand::thread_rng();
     let bet_min = 5;
@@ -134,7 +136,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
         let mut new_bets = vec![];
         let dice = roll(rng);
         let sum = dice.0 + dice.1;
-        println!("i:{i} roll:{dice:?} sum:{sum}");
+        info!("i:{i} roll:{dice:?} sum:{sum}");
         let mut new_point: Option<usize> = None;
         if sum == 7 {
             for bet in &bets {
@@ -142,7 +144,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                     Bet::Pass(PassAttrs { amount, odds: _ }) => {
                         if point.is_none() {
                             bankroll += 2 * amount;
-                            println!("passline winner");
+                            info!("passline winner");
                         }
                     }
                     Bet::Come(ComeAttrs {
@@ -152,7 +154,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                     }) => {
                         if target.is_none() {
                             bankroll += 2 * amount;
-                            println!("come wins");
+                            info!("come wins");
                         }
                     }
                 }
@@ -168,7 +170,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 if let Some(o) = odds {
                                     winnings += odds_payout(*o, p);
                                 }
-                                println!("pass wins {winnings} on point");
+                                info!("pass wins {winnings} on point");
                                 bankroll += winnings;
                             } else {
                                 new_bets.push(bet.clone());
@@ -179,7 +181,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 2 | 3 | 12 => (),
                                 11 => {
                                     bankroll += amount;
-                                    println!("pass wins on yo");
+                                    info!("pass wins on yo");
                                 }
                                 _ => {
                                     new_point = Some(sum);
@@ -209,7 +211,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 if let Some(o) = odds {
                                     winnings += odds_payout(*o, *t);
                                 }
-                                println!("come {t} wins {winnings}");
+                                info!("come {t} wins {winnings}");
                                 bankroll += winnings;
                             } else {
                                 new_bets.push(bet.clone());
@@ -219,7 +221,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 2 | 3 | 12 => (),
                                 11 => {
                                     bankroll += amount;
-                                    println!("come wins on yo");
+                                    info!("come wins on yo");
                                 }
                                 _ => {
                                     let odds_amount = *amount * odds_multiplier(sum);
@@ -241,7 +243,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                 }
             }
         }
-        println!("i:{i} point:{point:?} new_point:{new_point:?} bankroll:{bankroll} bets:{bets:?} new_bets:{new_bets:?}");
+        info!("i:{i} point:{point:?} new_point:{new_point:?} bankroll:{bankroll} bets:{bets:?} new_bets:{new_bets:?}");
         bets = new_bets;
         point = new_point;
         if bankroll >= bet_min {
@@ -252,7 +254,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
             }
             bankroll -= bet_min;
         }
-        println!("bankroll:{bankroll} bets:{bets:?}");
+        info!("bankroll:{bankroll} bets:{bets:?}");
         if bankroll < bet_min && bets.is_empty() {
             break;
         }

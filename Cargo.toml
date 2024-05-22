@@ -8,7 +8,9 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 clap = { version = "4.5.4", features = ["derive"] }
+log = "0.4.21"
 ndarray = "0.15.6"
 ndarray-stats = "0.5.1"
 noisy_float = "0.2.0"
 rand = "0.8.5"
+simple_logger = "5.0.0"
