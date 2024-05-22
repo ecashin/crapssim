@@ -94,13 +94,22 @@ fn odds_multiplier(target: usize) -> usize {
 fn main() {
     let mut rng = rand::thread_rng();
     let bet_min = 5;
+    let mut roll_counts = vec![];
+    for _ in 1..100 {
+        let n_rolls = one_scenario(&mut rng, bet_min);
+        roll_counts.push(n_rolls);
+    }
+}
+
+fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
     let mut bankroll = 300 - bet_min;
-
-    for i in 1.. {
+    let mut i = 0;
+    loop {
+        i += 1;
         let mut new_bets = vec![];
-        let dice = roll(&mut rng);
+        let dice = roll(rng);
         let sum = dice.0 + dice.1;
         println!("i:{i} roll:{dice:?} sum:{sum}");
         let mut new_point: Option<usize> = None;
@@ -225,4 +234,5 @@ fn main() {
             break;
         }
     }
+    i
 }
