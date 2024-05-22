@@ -109,9 +109,11 @@ fn main() -> Result<()> {
     let mut rng = rand::thread_rng();
     let bet_min = 5;
     let mut roll_counts = vec![];
+    let mut max_bankrolls = vec![];
     for _ in 1..cli.n_trials {
-        let n_rolls = one_scenario(&mut rng, bet_min);
+        let (n_rolls, max_bankroll) = one_scenario(&mut rng, bet_min);
         roll_counts.push(n_rolls);
+        max_bankrolls.push(max_bankroll);
     }
     println!("roll-count stats:");
     for quantile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] {
@@ -123,13 +125,24 @@ fn main() -> Result<()> {
                 println!("{:>10}: {:>10?}", q, v);
             });
     }
+    println!("max_bankroll stats:");
+    for quantile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] {
+        let mut a = ndarray::Array1::from_vec(max_bankrolls.clone());
+        a.quantile_axis_mut(Axis(0), n64(quantile), &Nearest)
+            .with_context(|| format!("computing quantile {quantile}"))?
+            .for_each(|v| {
+                let q = format!("q{quantile}");
+                println!("{:>10}: {:>10?}", q, v);
+            });
+    }
     Ok(())
 }
 
-fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
+fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
-    let mut bankroll = 300 - bet_min;
+    let mut max_bankroll = 300;
+    let mut bankroll = max_bankroll - bet_min;
     let mut i = 0;
     loop {
         i += 1;
@@ -144,6 +157,9 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                     Bet::Pass(PassAttrs { amount, odds: _ }) => {
                         if point.is_none() {
                             bankroll += 2 * amount;
+                            if bankroll > max_bankroll {
+                                max_bankroll = bankroll;
+                            }
                             info!("passline winner");
                         }
                     }
@@ -154,6 +170,9 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                     }) => {
                         if target.is_none() {
                             bankroll += 2 * amount;
+                            if bankroll > max_bankroll {
+                                max_bankroll = bankroll;
+                            }
                             info!("come wins");
                         }
                     }
@@ -172,6 +191,9 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 }
                                 info!("pass wins {winnings} on point");
                                 bankroll += winnings;
+                                if bankroll > max_bankroll {
+                                    max_bankroll = bankroll;
+                                }
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -181,6 +203,9 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 2 | 3 | 12 => (),
                                 11 => {
                                     bankroll += amount;
+                                    if bankroll > max_bankroll {
+                                        max_bankroll = bankroll;
+                                    }
                                     info!("pass wins on yo");
                                 }
                                 _ => {
@@ -213,6 +238,9 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
                                 }
                                 info!("come {t} wins {winnings}");
                                 bankroll += winnings;
+                                if bankroll > max_bankroll {
+                                    max_bankroll = bankroll;
+                                }
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -259,5 +287,5 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
             break;
         }
     }
-    i
+    (i, max_bankroll)
 }
