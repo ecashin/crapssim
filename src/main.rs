@@ -1,5 +1,9 @@
 use std::fmt;
 
+use anyhow::{Context, Result};
+use ndarray::Axis;
+use ndarray_stats::{interpolate::Nearest, QuantileExt};
+use noisy_float::types::n64;
 use rand::{rngs::ThreadRng, Rng};
 
 type Roll = (usize, usize);
@@ -91,7 +95,7 @@ fn odds_multiplier(target: usize) -> usize {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let mut rng = rand::thread_rng();
     let bet_min = 5;
     let mut roll_counts = vec![];
@@ -99,6 +103,17 @@ fn main() {
         let n_rolls = one_scenario(&mut rng, bet_min);
         roll_counts.push(n_rolls);
     }
+    println!("roll-count stats:");
+    for quantile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] {
+        let mut a = ndarray::Array1::from_vec(roll_counts.clone());
+        a.quantile_axis_mut(Axis(0), n64(quantile), &Nearest)
+            .with_context(|| format!("computing quantile {quantile}"))?
+            .for_each(|v| {
+                let q = format!("q{quantile}");
+                println!("{:>10}: {:>10?}", q, v);
+            });
+    }
+    Ok(())
 }
 
 fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> usize {
