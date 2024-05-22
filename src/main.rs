@@ -72,6 +72,25 @@ impl fmt::Debug for ComeAttrs {
     }
 }
 
+fn odds_payout(amount: usize, target: usize) -> usize {
+    let (numerator, denominator) = match target {
+        4 | 10 => (2, 1),
+        5 | 9 => (3, 2),
+        6 | 8 => (5, 6),
+        _ => panic!("What kind of odds bet was that!? {target}?"),
+    };
+    (amount * numerator) / denominator
+}
+
+fn odds_multiplier(target: usize) -> usize {
+    match target {
+        4 | 10 => 1,
+        5 | 9 => 2,
+        6 | 8 => 3,
+        _ => panic!("What kind of odds bet was that!? {target}?"),
+    }
+}
+
 fn main() {
     let mut rng = rand::thread_rng();
     let bet_min = 5;
@@ -79,7 +98,7 @@ fn main() {
     let mut point = None;
     let mut bankroll = 300 - bet_min;
 
-    for i in 1..=7 {
+    for i in 1.. {
         let mut new_bets = vec![];
         let dice = roll(&mut rng);
         let sum = dice.0 + dice.1;
@@ -110,11 +129,15 @@ fn main() {
         } else {
             for bet in &bets {
                 match bet {
-                    Bet::Pass(PassAttrs { amount, odds: _ }) => {
+                    Bet::Pass(PassAttrs { amount, odds }) => {
                         if let Some(p) = point {
                             if sum == p {
-                                bankroll += 2 * amount;
-                                println!("pass wins on point");
+                                let mut winnings = 2 * amount;
+                                if let Some(o) = odds {
+                                    winnings += odds_payout(*o, p);
+                                }
+                                println!("pass wins {winnings} on point");
+                                bankroll += winnings;
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -123,12 +146,22 @@ fn main() {
                             match sum {
                                 2 | 3 | 12 => (),
                                 11 => {
-                                    bankroll += 2 * amount;
+                                    bankroll += amount;
                                     println!("pass wins on yo");
                                 }
                                 _ => {
                                     new_point = Some(sum);
-                                    new_bets.push(bet.clone());
+                                    let odds_amount = *amount * odds_multiplier(sum);
+                                    let odds = if bankroll >= odds_amount {
+                                        bankroll -= odds_amount;
+                                        Some(odds_amount)
+                                    } else {
+                                        None
+                                    };
+                                    new_bets.push(Bet::Pass(PassAttrs {
+                                        amount: *amount,
+                                        odds,
+                                    }));
                                 }
                             }
                         }
@@ -136,12 +169,16 @@ fn main() {
                     Bet::Come(ComeAttrs {
                         amount,
                         target,
-                        odds: _,
+                        odds,
                     }) => {
                         if let Some(t) = target {
                             if *t == sum {
-                                bankroll += 2 * amount;
-                                println!("come {t} wins");
+                                let mut winnings = 2 * amount;
+                                if let Some(o) = odds {
+                                    winnings += odds_payout(*o, *t);
+                                }
+                                println!("come {t} wins {winnings}");
+                                bankroll += winnings;
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -149,14 +186,21 @@ fn main() {
                             match sum {
                                 2 | 3 | 12 => (),
                                 11 => {
-                                    bankroll += 2 * amount;
+                                    bankroll += amount;
                                     println!("come wins on yo");
                                 }
                                 _ => {
+                                    let odds_amount = *amount * odds_multiplier(sum);
+                                    let odds = if bankroll >= odds_amount {
+                                        bankroll -= odds_amount;
+                                        Some(odds_amount)
+                                    } else {
+                                        None
+                                    };
                                     new_bets.push(Bet::Come(ComeAttrs {
                                         amount: *amount,
                                         target: Some(sum),
-                                        odds: None,
+                                        odds,
                                     }));
                                 }
                             }
@@ -168,7 +212,7 @@ fn main() {
         println!("i:{i} point:{point:?} new_point:{new_point:?} bankroll:{bankroll} bets:{bets:?} new_bets:{new_bets:?}");
         bets = new_bets;
         point = new_point;
-        if bankroll > bet_min {
+        if bankroll >= bet_min {
             if point.is_none() {
                 bets.push(Bet::Pass(PassAttrs::new(bet_min)));
             } else {
@@ -177,5 +221,8 @@ fn main() {
             bankroll -= bet_min;
         }
         println!("bankroll:{bankroll} bets:{bets:?}");
+        if bankroll < bet_min && bets.is_empty() {
+            break;
+        }
     }
 }
