@@ -12,6 +12,8 @@ use rand::{rngs::ThreadRng, Rng};
 struct Cli {
     #[clap(long)]
     n_trials: usize,
+    #[clap(long)]
+    odds_345: bool,
 }
 
 type Roll = (usize, usize);
@@ -94,11 +96,20 @@ fn odds_payout(amount: usize, target: usize) -> usize {
     (amount * numerator) / denominator
 }
 
-fn odds_multiplier(target: usize) -> usize {
+fn odds_multiplier_123(target: usize) -> usize {
     match target {
         4 | 10 => 1,
         5 | 9 => 2,
         6 | 8 => 3,
+        _ => panic!("What kind of odds bet was that!? {target}?"),
+    }
+}
+
+fn odds_multiplier_345(target: usize) -> usize {
+    match target {
+        4 | 10 => 3,
+        5 | 9 => 4,
+        6 | 8 => 5,
         _ => panic!("What kind of odds bet was that!? {target}?"),
     }
 }
@@ -111,7 +122,7 @@ fn main() -> Result<()> {
     let mut roll_counts = vec![];
     let mut max_bankrolls = vec![];
     for _ in 1..=cli.n_trials {
-        let (n_rolls, max_bankroll) = one_scenario(&mut rng, bet_min);
+        let (n_rolls, max_bankroll) = one_scenario(&mut rng, bet_min, cli.odds_345);
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
     }
@@ -140,12 +151,24 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
+fn increase_bankroll(bankroll: &mut usize, max_bankroll: &mut usize, amount: usize) {
+    *bankroll += amount;
+    if *bankroll > *max_bankroll {
+        *max_bankroll = *bankroll;
+    }
+}
+
+fn one_scenario(rng: &mut ThreadRng, bet_min: usize, odds_345: bool) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
     let mut max_bankroll = 300;
     let mut bankroll = max_bankroll - bet_min;
     let mut i = 0;
+    let odds_multiplier = if odds_345 {
+        odds_multiplier_345
+    } else {
+        odds_multiplier_123
+    };
     loop {
         i += 1;
         let mut new_bets = vec![];
@@ -158,10 +181,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                 match bet {
                     Bet::Pass(PassAttrs { amount, odds: _ }) => {
                         if point.is_none() {
-                            bankroll += 2 * amount;
-                            if bankroll > max_bankroll {
-                                max_bankroll = bankroll;
-                            }
+                            increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("passline winner");
                         }
                     }
@@ -171,10 +191,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                         odds: _,
                     }) => {
                         if target.is_none() {
-                            bankroll += 2 * amount;
-                            if bankroll > max_bankroll {
-                                max_bankroll = bankroll;
-                            }
+                            increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("come wins");
                         }
                     }
@@ -192,10 +209,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                                     winnings += odds_payout(*o, p);
                                 }
                                 info!("pass wins {winnings} on point");
-                                bankroll += winnings;
-                                if bankroll > max_bankroll {
-                                    max_bankroll = bankroll;
-                                }
+                                increase_bankroll(&mut bankroll, &mut max_bankroll, winnings);
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -204,10 +218,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                             match sum {
                                 2 | 3 | 12 => (),
                                 11 => {
-                                    bankroll += amount;
-                                    if bankroll > max_bankroll {
-                                        max_bankroll = bankroll;
-                                    }
+                                    increase_bankroll(&mut bankroll, &mut max_bankroll, *amount);
                                     info!("pass wins on yo");
                                     new_bets.push(bet.clone())
                                 }
@@ -240,10 +251,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                                     winnings += odds_payout(*o, *t);
                                 }
                                 info!("come {t} wins {winnings}");
-                                bankroll += winnings;
-                                if bankroll > max_bankroll {
-                                    max_bankroll = bankroll;
-                                }
+                                increase_bankroll(&mut bankroll, &mut max_bankroll, winnings);
                             } else {
                                 new_bets.push(bet.clone());
                             }
@@ -251,7 +259,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                             match sum {
                                 2 | 3 | 12 => (),
                                 11 => {
-                                    bankroll += amount;
+                                    increase_bankroll(&mut bankroll, &mut max_bankroll, *amount);
                                     info!("come wins on yo");
                                     new_bets.push(bet.clone())
                                 }
