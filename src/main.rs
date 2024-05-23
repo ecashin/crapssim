@@ -10,6 +10,8 @@ use rand::{rngs::ThreadRng, Rng};
 
 #[derive(Parser)]
 struct Cli {
+    #[clap(long, default_value_t = 300)]
+    initial_bankroll: usize,
     #[clap(long)]
     n_trials: usize,
     #[clap(long)]
@@ -122,7 +124,8 @@ fn main() -> Result<()> {
     let mut roll_counts = vec![];
     let mut max_bankrolls = vec![];
     for _ in 1..=cli.n_trials {
-        let (n_rolls, max_bankroll) = one_scenario(&mut rng, bet_min, cli.odds_345);
+        let (n_rolls, max_bankroll) =
+            one_scenario(&mut rng, cli.initial_bankroll, bet_min, cli.odds_345);
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
     }
@@ -158,10 +161,15 @@ fn increase_bankroll(bankroll: &mut usize, max_bankroll: &mut usize, amount: usi
     }
 }
 
-fn one_scenario(rng: &mut ThreadRng, bet_min: usize, odds_345: bool) -> (usize, usize) {
+fn one_scenario(
+    rng: &mut ThreadRng,
+    initial_bankroll: usize,
+    bet_min: usize,
+    odds_345: bool,
+) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
-    let mut max_bankroll = 300;
+    let mut max_bankroll = initial_bankroll;
     let mut bankroll = max_bankroll - bet_min;
     let mut i = 0;
     let odds_multiplier = if odds_345 {
