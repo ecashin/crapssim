@@ -209,6 +209,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                                         max_bankroll = bankroll;
                                     }
                                     info!("pass wins on yo");
+                                    new_bets.push(bet.clone())
                                 }
                                 _ => {
                                     new_point = Some(sum);
@@ -252,6 +253,7 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
                                 11 => {
                                     bankroll += amount;
                                     info!("come wins on yo");
+                                    new_bets.push(bet.clone())
                                 }
                                 _ => {
                                     let odds_amount = *amount * odds_multiplier(sum);
@@ -277,12 +279,13 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
         bets = new_bets;
         point = new_point;
         if bankroll >= bet_min {
-            if point.is_none() {
+            if point.is_none() && !already_pass(&bets) {
                 bets.push(Bet::Pass(PassAttrs::new(bet_min)));
-            } else {
+                bankroll -= bet_min;
+            } else if !already_free_come(&bets) {
                 bets.push(Bet::Come(ComeAttrs::new(bet_min)));
+                bankroll -= bet_min;
             }
-            bankroll -= bet_min;
         }
         info!("bankroll:{bankroll} bets:{bets:?}");
         if bankroll < bet_min && bets.is_empty() {
@@ -290,4 +293,22 @@ fn one_scenario(rng: &mut ThreadRng, bet_min: usize) -> (usize, usize) {
         }
     }
     (i, max_bankroll)
+}
+
+fn already_free_come(bets: &Vec<Bet>) -> bool {
+    for bet in bets {
+        if matches!(bet, Bet::Come(ComeAttrs { target: None, .. })) {
+            return true;
+        }
+    }
+    false
+}
+
+fn already_pass(bets: &Vec<Bet>) -> bool {
+    for bet in bets {
+        if matches!(bet, Bet::Pass(_)) {
+            return true;
+        }
+    }
+    false
 }
