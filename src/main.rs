@@ -247,8 +247,8 @@ fn one_scenario(
         } else {
             for bet in &bets {
                 match bet {
+                    // non-7 pass bet
                     Bet::Pass(PassAttrs { amount, odds }) => {
-                        // non-7 pass bet
                         if let Some(p) = point {
                             if sum == p {
                                 let mut winnings = 2 * amount;
@@ -260,6 +260,7 @@ fn one_scenario(
                                 increase_bankroll(&mut bankroll, &mut max_bankroll, winnings);
                             } else {
                                 new_bets.push(bet.clone());
+                                new_point = point;
                             }
                         } else {
                             match sum {
@@ -286,8 +287,8 @@ fn one_scenario(
                             }
                         }
                     }
+                    // non-7 come bet
                     Bet::Come(ComeAttrs {
-                        // non-7 come bet
                         amount,
                         target,
                         odds,
