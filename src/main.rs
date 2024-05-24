@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -6,7 +6,7 @@ use log::info;
 use ndarray::Axis;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
-use rand::{rngs::ThreadRng, Rng};
+use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
 struct Cli {
@@ -16,15 +16,11 @@ struct Cli {
     n_trials: usize,
     #[clap(long)]
     odds_345: bool,
+    #[clap(long)]
+    roll_script: Option<PathBuf>,
 }
 
 type Roll = (usize, usize);
-
-fn roll(rng: &mut ThreadRng) -> Roll {
-    let die1: usize = rng.gen_range(1..=6);
-    let die2: usize = rng.gen_range(1..=6);
-    (die1, die2)
-}
 
 #[derive(Clone, Debug)]
 enum Bet {
@@ -119,13 +115,16 @@ fn odds_multiplier_345(target: usize) -> usize {
 fn main() -> Result<()> {
     simple_logger::init_with_env().context("setting up logging")?;
     let cli = Cli::parse();
-    let mut rng = rand::thread_rng();
     let bet_min = 5;
     let mut roll_counts = vec![];
     let mut max_bankrolls = vec![];
     for _ in 1..=cli.n_trials {
-        let (n_rolls, max_bankroll) =
-            one_scenario(&mut rng, cli.initial_bankroll, bet_min, cli.odds_345);
+        let (n_rolls, max_bankroll) = one_scenario(
+            cli.initial_bankroll,
+            bet_min,
+            cli.odds_345,
+            &cli.roll_script,
+        );
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
     }
@@ -161,16 +160,55 @@ fn increase_bankroll(bankroll: &mut usize, max_bankroll: &mut usize, amount: usi
     }
 }
 
+struct Shooter {
+    values: Option<Vec<Roll>>,
+    i: usize,
+}
+
+impl Shooter {
+    fn new(script: &Option<PathBuf>) -> Self {
+        let values = if let Some(script) = script {
+            let rolls: Vec<Roll> = fs::read_to_string(script)
+                .unwrap()
+                .lines()
+                .map(|line| {
+                    let mut fields = line.trim().split_whitespace();
+                    (
+                        fields.next().unwrap().parse().unwrap(),
+                        fields.next().unwrap().parse().unwrap(),
+                    )
+                })
+                .collect();
+            Some(rolls)
+        } else {
+            None
+        };
+        let i = 0;
+        Self { values, i }
+    }
+
+    fn roll(self: &mut Self) -> Roll {
+        if let Some(values) = &self.values {
+            let roll = values[self.i % values.len()];
+            self.i += 1;
+            roll
+        } else {
+            (thread_rng().gen_range(1..=6), thread_rng().gen_range(1..=6))
+        }
+    }
+}
+
 fn one_scenario(
-    rng: &mut ThreadRng,
     initial_bankroll: usize,
     bet_min: usize,
     odds_345: bool,
+    roll_script: &Option<PathBuf>,
 ) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
     let mut max_bankroll = initial_bankroll;
     let mut bankroll = max_bankroll - bet_min;
+    let mut shooter = Shooter::new(roll_script);
     let mut i = 0;
     let odds_multiplier = if odds_345 {
         odds_multiplier_345
@@ -180,7 +218,7 @@ fn one_scenario(
     loop {
         i += 1;
         let mut new_bets = vec![];
-        let dice = roll(rng);
+        let dice = shooter.roll();
         let sum = dice.0 + dice.1;
         info!("i:{i} roll:{dice:?} sum:{sum}");
         let mut new_point: Option<usize> = None;
@@ -210,6 +248,7 @@ fn one_scenario(
             for bet in &bets {
                 match bet {
                     Bet::Pass(PassAttrs { amount, odds }) => {
+                        // non-7 pass bet
                         if let Some(p) = point {
                             if sum == p {
                                 let mut winnings = 2 * amount;
@@ -221,7 +260,6 @@ fn one_scenario(
                             } else {
                                 new_bets.push(bet.clone());
                             }
-                            new_point = point;
                         } else {
                             match sum {
                                 2 | 3 | 12 => (),
@@ -248,6 +286,7 @@ fn one_scenario(
                         }
                     }
                     Bet::Come(ComeAttrs {
+                        // non-7 come bet
                         amount,
                         target,
                         odds,
