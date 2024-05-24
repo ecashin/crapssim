@@ -88,7 +88,7 @@ fn odds_payout(amount: usize, target: usize) -> usize {
     let (numerator, denominator) = match target {
         4 | 10 => (2, 1),
         5 | 9 => (3, 2),
-        6 | 8 => (5, 6),
+        6 | 8 => (6, 5),
         _ => panic!("What kind of odds bet was that!? {target}?"),
     };
     (amount * numerator) / denominator
@@ -253,6 +253,7 @@ fn one_scenario(
                             if sum == p {
                                 let mut winnings = 2 * amount;
                                 if let Some(o) = odds {
+                                    winnings += *o;
                                     winnings += odds_payout(*o, p);
                                 }
                                 info!("pass wins {winnings} on point");
@@ -295,6 +296,7 @@ fn one_scenario(
                             if *t == sum {
                                 let mut winnings = 2 * amount;
                                 if let Some(o) = odds {
+                                    winnings += *o;
                                     winnings += odds_payout(*o, *t);
                                 }
                                 info!("come {t} wins {winnings}");
