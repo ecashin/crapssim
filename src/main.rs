@@ -1,4 +1,9 @@
-use std::{fmt, fs, path::PathBuf};
+use std::{
+    fmt,
+    fs::{self, File},
+    io::{BufWriter, Write},
+    path::PathBuf,
+};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -18,6 +23,8 @@ struct Cli {
     odds_345: bool,
     #[clap(long)]
     roll_script: Option<PathBuf>,
+    #[clap(long)]
+    roll_log: Option<PathBuf>,
 }
 
 type Roll = (usize, usize);
@@ -124,6 +131,7 @@ fn main() -> Result<()> {
             bet_min,
             cli.odds_345,
             &cli.roll_script,
+            &cli.roll_log,
         );
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
@@ -163,10 +171,11 @@ fn increase_bankroll(bankroll: &mut usize, max_bankroll: &mut usize, amount: usi
 struct Shooter {
     values: Option<Vec<Roll>>,
     i: usize,
+    roll_logger: RollLogger,
 }
 
 impl Shooter {
-    fn new(script: &Option<PathBuf>) -> Self {
+    fn new(script: &Option<PathBuf>, roll_log: &Option<PathBuf>) -> Self {
         let values = if let Some(script) = script {
             let rolls: Vec<Roll> = fs::read_to_string(script)
                 .unwrap()
@@ -184,31 +193,60 @@ impl Shooter {
             None
         };
         let i = 0;
-        Self { values, i }
+        let roll_logger = RollLogger::new(roll_log);
+        Self {
+            values,
+            i,
+            roll_logger,
+        }
     }
 
     fn roll(self: &mut Self) -> Roll {
-        if let Some(values) = &self.values {
+        let roll = if let Some(values) = &self.values {
             let roll = values[self.i % values.len()];
             self.i += 1;
             roll
         } else {
             (thread_rng().gen_range(1..=6), thread_rng().gen_range(1..=6))
-        }
+        };
+        self.roll_logger.log(roll);
+        roll
     }
 }
 
+struct RollLogger {
+    writer: Option<BufWriter<File>>,
+}
+
+impl RollLogger {
+    fn new(roll_log: &Option<PathBuf>) -> Self {
+        let writer = if let Some(log_file) = roll_log {
+            let file = File::create(log_file).expect("opening roll log");
+            Some(BufWriter::new(file))
+        } else {
+            None
+        };
+        Self { writer }
+    }
+
+    fn log(&mut self, roll: Roll) {
+        if let Some(writer) = &mut self.writer {
+            write!(writer, "{} {}\n", roll.0, roll.1).expect("writing roll to log");
+        }
+    }
+}
 fn one_scenario(
     initial_bankroll: usize,
     bet_min: usize,
     odds_345: bool,
     roll_script: &Option<PathBuf>,
+    roll_log: &Option<PathBuf>,
 ) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
     let mut max_bankroll = initial_bankroll;
     let mut bankroll = max_bankroll - bet_min;
-    let mut shooter = Shooter::new(roll_script);
+    let mut shooter = Shooter::new(roll_script, roll_log);
     let mut i = 0;
     let odds_multiplier = if odds_345 {
         odds_multiplier_345
