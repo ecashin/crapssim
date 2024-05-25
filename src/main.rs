@@ -25,6 +25,8 @@ struct Cli {
     roll_script: Option<PathBuf>,
     #[clap(long)]
     roll_log: Option<PathBuf>,
+    #[clap(long)]
+    grow_bets: bool,
 }
 
 type Roll = (usize, usize);
@@ -132,6 +134,7 @@ fn main() -> Result<()> {
             cli.odds_345,
             &cli.roll_script,
             &cli.roll_log,
+            cli.grow_bets,
         );
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
@@ -241,6 +244,7 @@ fn one_scenario(
     odds_345: bool,
     roll_script: &Option<PathBuf>,
     roll_log: &Option<PathBuf>,
+    grow_bets: bool,
 ) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
@@ -375,12 +379,23 @@ fn one_scenario(
         bets = new_bets;
         point = new_point;
         if bankroll >= bet_min {
+            let mut bet_amount = bet_min;
+            let mut big = bankroll;
+            if grow_bets {
+                loop {
+                    big /= 2;
+                    if big < initial_bankroll {
+                        break;
+                    }
+                    bet_amount *= 2;
+                }
+            }
             if point.is_none() && !already_pass(&bets) {
-                bets.push(Bet::Pass(PassAttrs::new(bet_min)));
-                bankroll -= bet_min;
+                bets.push(Bet::Pass(PassAttrs::new(bet_amount)));
+                bankroll -= bet_amount;
             } else if !already_free_come(&bets) {
-                bets.push(Bet::Come(ComeAttrs::new(bet_min)));
-                bankroll -= bet_min;
+                bets.push(Bet::Come(ComeAttrs::new(bet_amount)));
+                bankroll -= bet_amount;
             }
         }
         info!("bankroll:{bankroll} bets:{bets:?}");
@@ -388,6 +403,7 @@ fn one_scenario(
             break;
         }
     }
+    info!("i{i}: max_bankroll:{max_bankroll}");
     (i, max_bankroll)
 }
 
