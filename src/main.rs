@@ -8,9 +8,7 @@ use std::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use log::info;
-use ndarray::Axis;
-use ndarray_stats::{interpolate::Nearest, QuantileExt};
-use noisy_float::types::n64;
+use noisy_float::types::{n64, N64};
 use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
@@ -95,6 +93,19 @@ impl fmt::Debug for ComeAttrs {
     }
 }
 
+fn quantiles(a: &mut [usize], q: &[N64]) -> Vec<(N64, usize)> {
+    let n = a.len();
+    assert!(n >= 1);
+    a.sort_unstable();
+    q.iter()
+        .map(|qq| {
+            let i: usize = (*qq * n64(n as f64 - 1.0)).raw() as usize;
+            assert!(i < n);
+            (*qq, a[i])
+        })
+        .collect()
+}
+
 fn odds_payout(amount: usize, target: usize) -> usize {
     let (numerator, denominator) = match target {
         4 | 10 => (2, 1),
@@ -147,26 +158,24 @@ fn main() -> Result<()> {
         max_bankrolls.push(max_bankroll);
     }
     if cli.n_trials > 1 {
+        let q = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+            .into_iter()
+            .map(|f| n64(f))
+            .collect::<Vec<_>>();
         println!("roll-count stats:");
-        for quantile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] {
-            let mut a = ndarray::Array1::from_vec(roll_counts.clone());
-            a.quantile_axis_mut(Axis(0), n64(quantile), &Nearest)
-                .with_context(|| format!("computing quantile {quantile}"))?
-                .for_each(|v| {
-                    let q = format!("q{quantile}");
-                    println!("{:>10}: {:>10?}", q, v);
-                });
-        }
+        quantiles(&mut roll_counts, &q)
+            .iter()
+            .for_each(|(quantile, v)| {
+                let q = format!("q{quantile}");
+                println!("{:>10}: {:>10?}", q, v);
+            });
         println!("max_bankroll stats:");
-        for quantile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] {
-            let mut a = ndarray::Array1::from_vec(max_bankrolls.clone());
-            a.quantile_axis_mut(Axis(0), n64(quantile), &Nearest)
-                .with_context(|| format!("computing quantile {quantile}"))?
-                .for_each(|v| {
-                    let q = format!("q{quantile}");
-                    println!("{:>10}: {:>10?}", q, v);
-                });
-        }
+        quantiles(&mut max_bankrolls, &q)
+            .iter()
+            .for_each(|(quantile, v)| {
+                let q = format!("q{quantile}");
+                println!("{:>10}: {:>10?}", q, v);
+            });
     }
     Ok(())
 }
