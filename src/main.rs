@@ -147,23 +147,14 @@ fn main() -> Result<()> {
     let mut roll_counts = vec![];
     let mut max_bankrolls = vec![];
     for _ in 1..=cli.n_trials {
-        let (n_rolls, max_bankroll) = one_scenario(
-            cli.initial_bankroll,
-            bet_min,
-            &cli.odds,
-            &cli.roll_script,
-            &cli.roll_log,
-            cli.grow_bets,
-            cli.grow_odds,
-            &cli.max_rolls,
-        );
+        let (n_rolls, max_bankroll) = one_scenario(&cli, bet_min);
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
     }
     if cli.n_trials > 1 {
         let q = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
             .into_iter()
-            .map(|f| n64(f))
+            .map(n64)
             .collect::<Vec<_>>();
         println!("roll-count stats:");
         quantiles(&mut roll_counts, &q)
@@ -271,27 +262,18 @@ fn grow_odds_multiplier(target: usize, initial_bankroll: usize, bankroll: usize)
     }
 }
 
-fn one_scenario(
-    initial_bankroll: usize,
-    bet_min: usize,
-    odds: &str,
-    roll_script: &Option<PathBuf>,
-    roll_log: &Option<PathBuf>,
-    grow_bets: bool,
-    grow_odds: bool,
-    max_rolls: &Option<usize>,
-) -> (usize, usize) {
+fn one_scenario(cli: &Cli, bet_min: usize) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
-    let mut max_bankroll = initial_bankroll;
+    let mut max_bankroll = cli.initial_bankroll;
     let mut bankroll = max_bankroll - bet_min;
-    let mut shooter = Shooter::new(roll_script, roll_log);
+    let mut shooter = Shooter::new(&cli.roll_script, &cli.roll_log);
     let mut i = 0;
     let odds_multiplier = |target, initial_bankroll, bankroll| {
-        if grow_odds {
+        if cli.grow_odds {
             grow_odds_multiplier(target, initial_bankroll, bankroll)
         } else {
-            match odds {
+            match cli.odds.as_str() {
                 "345" => odds_multiplier_345(target),
                 "123" => odds_multiplier_123(target),
                 "10" => odds_multiplier_10(target),
@@ -356,8 +338,8 @@ fn one_scenario(
                                 }
                                 _ => {
                                     new_point = Some(sum);
-                                    let odds_amount =
-                                        *amount * odds_multiplier(sum, initial_bankroll, bankroll);
+                                    let odds_amount = *amount
+                                        * odds_multiplier(sum, cli.initial_bankroll, bankroll);
                                     let odds = if bankroll >= odds_amount {
                                         bankroll -= odds_amount;
                                         Some(odds_amount)
@@ -399,8 +381,8 @@ fn one_scenario(
                                     new_bets.push(bet.clone())
                                 }
                                 _ => {
-                                    let odds_amount =
-                                        *amount * odds_multiplier(sum, initial_bankroll, bankroll);
+                                    let odds_amount = *amount
+                                        * odds_multiplier(sum, cli.initial_bankroll, bankroll);
                                     let odds = if bankroll >= odds_amount {
                                         bankroll -= odds_amount;
                                         Some(odds_amount)
@@ -425,10 +407,10 @@ fn one_scenario(
         if bankroll >= bet_min {
             let mut bet_amount = bet_min;
             let mut big = bankroll;
-            if grow_bets {
+            if cli.grow_bets {
                 loop {
                     big /= 2;
-                    if big < initial_bankroll {
+                    if big < cli.initial_bankroll {
                         break;
                     }
                     bet_amount *= 2;
@@ -446,7 +428,7 @@ fn one_scenario(
         if bankroll < bet_min && bets.is_empty() {
             break;
         }
-        if max_rolls.is_some_and(|m| i == m) {
+        if cli.max_rolls.is_some_and(|m| i == m) {
             warn!("terminating early at max rolls");
             break;
         }
