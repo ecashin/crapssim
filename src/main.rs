@@ -21,6 +21,8 @@ struct Cli {
     initial_bankroll: usize,
     #[clap(long)]
     max_rolls: Option<usize>,
+    #[clap(long, default_value_t = 5)]
+    min_bet: usize,
     #[clap(long)]
     n_trials: usize,
     #[clap(long, default_value = "123")]
@@ -143,11 +145,10 @@ fn odds_multiplier_345(target: usize) -> usize {
 fn main() -> Result<()> {
     simple_logger::init_with_env().context("setting up logging")?;
     let cli = Cli::parse();
-    let bet_min = 5;
     let mut roll_counts = vec![];
     let mut max_bankrolls = vec![];
     for _ in 1..=cli.n_trials {
-        let (n_rolls, max_bankroll) = one_scenario(&cli, bet_min);
+        let (n_rolls, max_bankroll) = one_scenario(&cli);
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
     }
@@ -262,11 +263,11 @@ fn grow_odds_multiplier(target: usize, initial_bankroll: usize, bankroll: usize)
     }
 }
 
-fn one_scenario(cli: &Cli, bet_min: usize) -> (usize, usize) {
-    let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
+fn one_scenario(cli: &Cli) -> (usize, usize) {
+    let mut bets = vec![Bet::Pass(PassAttrs::new(cli.min_bet))];
     let mut point = None;
     let mut max_bankroll = cli.initial_bankroll;
-    let mut bankroll = max_bankroll - bet_min;
+    let mut bankroll = max_bankroll - cli.min_bet;
     let mut shooter = Shooter::new(&cli.roll_script, &cli.roll_log);
     let mut i = 0;
     let odds_multiplier = |target, initial_bankroll, bankroll| {
@@ -404,8 +405,8 @@ fn one_scenario(cli: &Cli, bet_min: usize) -> (usize, usize) {
         info!("i:{i} point:{point:?} new_point:{new_point:?} bankroll:{bankroll} bets:{bets:?} new_bets:{new_bets:?}");
         bets = new_bets;
         point = new_point;
-        if bankroll >= bet_min {
-            let mut bet_amount = bet_min;
+        if bankroll >= cli.min_bet {
+            let mut bet_amount = cli.min_bet;
             let mut big = bankroll;
             if cli.grow_bets {
                 loop {
@@ -425,7 +426,7 @@ fn one_scenario(cli: &Cli, bet_min: usize) -> (usize, usize) {
             }
         }
         info!("bankroll:{bankroll} bets:{bets:?}");
-        if bankroll < bet_min && bets.is_empty() {
+        if bankroll < cli.min_bet && bets.is_empty() {
             break;
         }
         if cli.max_rolls.is_some_and(|m| i == m) {
