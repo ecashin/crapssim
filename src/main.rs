@@ -7,14 +7,20 @@ use std::{
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use log::info;
+use log::{info, warn};
 use noisy_float::types::{n64, N64};
 use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
 struct Cli {
+    #[clap(long)]
+    grow_bets: bool,
+    #[clap(long)]
+    grow_odds: bool,
     #[clap(long, default_value_t = 300)]
     initial_bankroll: usize,
+    #[clap(long)]
+    max_rolls: Option<usize>,
     #[clap(long)]
     n_trials: usize,
     #[clap(long, default_value = "123")]
@@ -23,10 +29,6 @@ struct Cli {
     roll_script: Option<PathBuf>,
     #[clap(long)]
     roll_log: Option<PathBuf>,
-    #[clap(long)]
-    grow_bets: bool,
-    #[clap(long)]
-    grow_odds: bool,
 }
 
 type Roll = (usize, usize);
@@ -153,6 +155,7 @@ fn main() -> Result<()> {
             &cli.roll_log,
             cli.grow_bets,
             cli.grow_odds,
+            &cli.max_rolls,
         );
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
@@ -276,6 +279,7 @@ fn one_scenario(
     roll_log: &Option<PathBuf>,
     grow_bets: bool,
     grow_odds: bool,
+    max_rolls: &Option<usize>,
 ) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
@@ -440,6 +444,10 @@ fn one_scenario(
         }
         info!("bankroll:{bankroll} bets:{bets:?}");
         if bankroll < bet_min && bets.is_empty() {
+            break;
+        }
+        if max_rolls.is_some_and(|m| i == m) {
+            warn!("terminating early at max rolls");
             break;
         }
     }
