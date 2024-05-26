@@ -28,6 +28,8 @@ struct Cli {
     #[clap(long, default_value = "123")]
     odds: String,
     #[clap(long)]
+    odds_off_without_point: bool,
+    #[clap(long)]
     roll_script: Option<PathBuf>,
     #[clap(long)]
     roll_log: Option<PathBuf>,
@@ -292,26 +294,38 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
         if sum == 7 {
             for bet in &bets {
                 match bet {
-                    Bet::Pass(PassAttrs { amount, odds: _ }) => {
+                    Bet::Pass(PassAttrs { amount, odds }) => {
                         if point.is_none() {
                             increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("passline winner");
+                            if cli.odds_off_without_point {
+                                if let Some(odds) = odds {
+                                    // return inactive odds to player
+                                    increase_bankroll(&mut bankroll, &mut max_bankroll, *odds);
+                                }
+                            }
                         }
                     }
                     Bet::Come(ComeAttrs {
                         amount,
                         target,
-                        odds: _,
+                        odds,
                     }) => {
                         if target.is_none() {
                             increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("come wins");
+                        } else if point.is_none() && cli.odds_off_without_point {
+                            // give inactive odds bet back to player
+                            if let Some(odds) = odds {
+                                increase_bankroll(&mut bankroll, &mut max_bankroll, *odds);
+                            }
                         }
                     }
                 }
             }
             new_point = None;
         } else {
+            // sum is not 7
             for bet in &bets {
                 match bet {
                     // non-7 pass bet
@@ -365,8 +379,11 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
                             if *t == sum {
                                 let mut winnings = 2 * amount;
                                 if let Some(o) = odds {
+                                    if point.is_some() || !cli.odds_off_without_point {
+                                        winnings += odds_payout(*o, *t);
+                                    }
+                                    // get the original bet back
                                     winnings += *o;
-                                    winnings += odds_payout(*o, *t);
                                 }
                                 info!("come {t} wins {winnings}");
                                 increase_bankroll(&mut bankroll, &mut max_bankroll, winnings);
