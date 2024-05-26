@@ -27,6 +27,8 @@ struct Cli {
     roll_log: Option<PathBuf>,
     #[clap(long)]
     grow_bets: bool,
+    #[clap(long)]
+    grow_odds: bool,
 }
 
 type Roll = (usize, usize);
@@ -139,6 +141,7 @@ fn main() -> Result<()> {
             &cli.roll_script,
             &cli.roll_log,
             cli.grow_bets,
+            cli.grow_odds,
         );
         roll_counts.push(n_rolls);
         max_bankrolls.push(max_bankroll);
@@ -188,7 +191,7 @@ impl Shooter {
                 .unwrap()
                 .lines()
                 .map(|line| {
-                    let mut fields = line.trim().split_whitespace();
+                    let mut fields = line.split_whitespace();
                     (
                         fields.next().unwrap().parse().unwrap(),
                         fields.next().unwrap().parse().unwrap(),
@@ -208,7 +211,7 @@ impl Shooter {
         }
     }
 
-    fn roll(self: &mut Self) -> Roll {
+    fn roll(&mut self) -> Roll {
         let roll = if let Some(values) = &self.values {
             let roll = values[self.i % values.len()];
             self.i += 1;
@@ -238,10 +241,24 @@ impl RollLogger {
 
     fn log(&mut self, roll: Roll) {
         if let Some(writer) = &mut self.writer {
-            write!(writer, "{} {}\n", roll.0, roll.1).expect("writing roll to log");
+            writeln!(writer, "{} {}", roll.0, roll.1).expect("writing roll to log");
         }
     }
 }
+
+fn grow_odds_multiplier(target: usize, initial_bankroll: usize, bankroll: usize) -> usize {
+    let initial = initial_bankroll as f64;
+    let current = bankroll as f64;
+    let f = current / initial;
+    if f < 0.8 {
+        odds_multiplier_123(target)
+    } else if f < 1.4 {
+        odds_multiplier_345(target)
+    } else {
+        odds_multiplier_10(target)
+    }
+}
+
 fn one_scenario(
     initial_bankroll: usize,
     bet_min: usize,
@@ -249,6 +266,7 @@ fn one_scenario(
     roll_script: &Option<PathBuf>,
     roll_log: &Option<PathBuf>,
     grow_bets: bool,
+    grow_odds: bool,
 ) -> (usize, usize) {
     let mut bets = vec![Bet::Pass(PassAttrs::new(bet_min))];
     let mut point = None;
@@ -256,11 +274,17 @@ fn one_scenario(
     let mut bankroll = max_bankroll - bet_min;
     let mut shooter = Shooter::new(roll_script, roll_log);
     let mut i = 0;
-    let odds_multiplier = match odds {
-        "345" => odds_multiplier_345,
-        "123" => odds_multiplier_123,
-        "10" => odds_multiplier_10,
-        _ => panic!("not an odds type"),
+    let odds_multiplier = |target, initial_bankroll, bankroll| {
+        if grow_odds {
+            grow_odds_multiplier(target, initial_bankroll, bankroll)
+        } else {
+            match odds {
+                "345" => odds_multiplier_345(target),
+                "123" => odds_multiplier_123(target),
+                "10" => odds_multiplier_10(target),
+                _ => panic!("not an odds type"),
+            }
+        }
     };
     loop {
         i += 1;
@@ -319,7 +343,8 @@ fn one_scenario(
                                 }
                                 _ => {
                                     new_point = Some(sum);
-                                    let odds_amount = *amount * odds_multiplier(sum);
+                                    let odds_amount =
+                                        *amount * odds_multiplier(sum, initial_bankroll, bankroll);
                                     let odds = if bankroll >= odds_amount {
                                         bankroll -= odds_amount;
                                         Some(odds_amount)
@@ -361,7 +386,8 @@ fn one_scenario(
                                     new_bets.push(bet.clone())
                                 }
                                 _ => {
-                                    let odds_amount = *amount * odds_multiplier(sum);
+                                    let odds_amount =
+                                        *amount * odds_multiplier(sum, initial_bankroll, bankroll);
                                     let odds = if bankroll >= odds_amount {
                                         bankroll -= odds_amount;
                                         Some(odds_amount)
