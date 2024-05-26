@@ -19,8 +19,8 @@ struct Cli {
     initial_bankroll: usize,
     #[clap(long)]
     n_trials: usize,
-    #[clap(long)]
-    odds_345: bool,
+    #[clap(long, default_value = "123")]
+    odds: String,
     #[clap(long)]
     roll_script: Option<PathBuf>,
     #[clap(long)]
@@ -103,6 +103,10 @@ fn odds_payout(amount: usize, target: usize) -> usize {
     (amount * numerator) / denominator
 }
 
+fn odds_multiplier_10(_target: usize) -> usize {
+    10
+}
+
 fn odds_multiplier_123(target: usize) -> usize {
     match target {
         4 | 10 => 1,
@@ -131,7 +135,7 @@ fn main() -> Result<()> {
         let (n_rolls, max_bankroll) = one_scenario(
             cli.initial_bankroll,
             bet_min,
-            cli.odds_345,
+            &cli.odds,
             &cli.roll_script,
             &cli.roll_log,
             cli.grow_bets,
@@ -241,7 +245,7 @@ impl RollLogger {
 fn one_scenario(
     initial_bankroll: usize,
     bet_min: usize,
-    odds_345: bool,
+    odds: &str,
     roll_script: &Option<PathBuf>,
     roll_log: &Option<PathBuf>,
     grow_bets: bool,
@@ -252,10 +256,11 @@ fn one_scenario(
     let mut bankroll = max_bankroll - bet_min;
     let mut shooter = Shooter::new(roll_script, roll_log);
     let mut i = 0;
-    let odds_multiplier = if odds_345 {
-        odds_multiplier_345
-    } else {
-        odds_multiplier_123
+    let odds_multiplier = match odds {
+        "345" => odds_multiplier_345,
+        "123" => odds_multiplier_123,
+        "10" => odds_multiplier_10,
+        _ => panic!("not an odds type"),
     };
     loop {
         i += 1;
