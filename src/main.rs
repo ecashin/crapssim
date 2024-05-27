@@ -2,7 +2,7 @@ use std::{
     fmt,
     fs::{self, File},
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result};
@@ -13,6 +13,8 @@ use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
 struct Cli {
+    #[clap(long)]
+    csv_output_file: Option<PathBuf>,
     #[clap(long)]
     grow_bets: bool,
     #[clap(long)]
@@ -29,6 +31,9 @@ struct Cli {
     odds: String,
     #[clap(long)]
     odds_off_without_point: bool,
+    /// Label to include in CSV output rows
+    #[clap(long)]
+    plot_label: Option<String>,
     #[clap(long)]
     roll_script: Option<PathBuf>,
     #[clap(long)]
@@ -144,6 +149,21 @@ fn odds_multiplier_345(target: usize) -> usize {
     }
 }
 
+fn write_csv(fname: &Path, roll_counts: &[usize], max_bankrolls: &[usize], label: &str) {
+    let file = File::options()
+        .append(true)
+        .open(fname)
+        .expect("creating CSV output file");
+    let needs_header = file.metadata().unwrap().len() == 0;
+    let mut writer = BufWriter::new(file);
+    if needs_header {
+        writeln!(writer, "rolls,max_bankroll,label").expect("writing to CSV file");
+    }
+    for (rolls, max_bankroll) in roll_counts.iter().zip(max_bankrolls.iter()) {
+        writeln!(writer, "{rolls},{max_bankroll},{label}").expect("writing to CSV file");
+    }
+}
+
 fn main() -> Result<()> {
     simple_logger::init_with_env().context("setting up logging")?;
     let cli = Cli::parse();
@@ -173,6 +193,13 @@ fn main() -> Result<()> {
                 let q = format!("q{quantile}");
                 println!("{:>10}: {:>10?}", q, v);
             });
+    }
+    if let Some(fname) = cli.csv_output_file {
+        if let Some(label) = cli.plot_label {
+            write_csv(&fname, &roll_counts, &max_bankrolls, &label);
+        } else {
+            warn!("plot label is required for CSV output");
+        }
     }
     Ok(())
 }
