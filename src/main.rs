@@ -152,6 +152,7 @@ fn odds_multiplier_345(target: usize) -> usize {
 fn write_csv(fname: &Path, roll_counts: &[usize], max_bankrolls: &[usize], label: &str) {
     let file = File::options()
         .append(true)
+        .create(true)
         .open(fname)
         .expect("creating CSV output file");
     let needs_header = file.metadata().unwrap().len() == 0;
