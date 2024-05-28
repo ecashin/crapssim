@@ -30,7 +30,7 @@ struct Cli {
     #[clap(long, default_value = "123")]
     odds: String,
     #[clap(long)]
-    odds_off_without_point: bool,
+    odds_working_without_point: bool,
     /// Label to include in CSV output rows
     #[clap(long)]
     plot_label: Option<String>,
@@ -326,7 +326,7 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
                         if point.is_none() {
                             increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("passline winner");
-                            if cli.odds_off_without_point {
+                            if !cli.odds_working_without_point {
                                 if let Some(odds) = odds {
                                     // return inactive odds to player
                                     increase_bankroll(&mut bankroll, &mut max_bankroll, *odds);
@@ -342,7 +342,7 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
                         if target.is_none() {
                             increase_bankroll(&mut bankroll, &mut max_bankroll, 2 * amount);
                             info!("come wins");
-                        } else if point.is_none() && cli.odds_off_without_point {
+                        } else if point.is_none() && !cli.odds_working_without_point {
                             // give inactive odds bet back to player
                             if let Some(odds) = odds {
                                 increase_bankroll(&mut bankroll, &mut max_bankroll, *odds);
@@ -407,10 +407,10 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
                             if *t == sum {
                                 let mut winnings = 2 * amount;
                                 if let Some(o) = odds {
-                                    if point.is_some() || !cli.odds_off_without_point {
+                                    if point.is_some() || cli.odds_working_without_point {
                                         winnings += odds_payout(*o, *t);
                                     }
-                                    // get the original bet back
+                                    // get the original odds bet back
                                     winnings += *o;
                                 }
                                 info!("come {t} wins {winnings}");
