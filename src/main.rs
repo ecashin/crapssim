@@ -141,12 +141,7 @@ fn odds_multiplier_123(target: usize) -> usize {
 }
 
 fn odds_multiplier_345(target: usize) -> usize {
-    match target {
-        4 | 10 => 3,
-        5 | 9 => 4,
-        6 | 8 => 5,
-        _ => panic!("What kind of odds bet was that!? {target}?"),
-    }
+    odds_multiplier_123(target) + 2
 }
 
 fn write_csv(fname: &Path, roll_counts: &[usize], max_bankrolls: &[usize], label: &str) {
