@@ -131,6 +131,10 @@ fn odds_multiplier_10(_target: usize) -> usize {
     10
 }
 
+fn odds_multiplier_20(_target: usize) -> usize {
+    20
+}
+
 fn odds_multiplier_123(target: usize) -> usize {
     match target {
         4 | 10 => 1,
@@ -303,6 +307,7 @@ fn one_scenario(cli: &Cli) -> (usize, usize) {
                 "345" => odds_multiplier_345(target),
                 "123" => odds_multiplier_123(target),
                 "10" => odds_multiplier_10(target),
+                "20" => odds_multiplier_20(target),
                 _ => panic!("not an odds type"),
             }
         }
