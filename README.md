@@ -17,8 +17,33 @@ while programming.
 
 ## Analysis
 
+### Tabular Display
+
 Quantiles are nice for overviews of different strategies
 in action.
+
+    bash$ cargo build
+    bash$ RUST_LOG=warn ./target/debug/crapssim --n-trials 100 --min-bet 5 --odds 123 --initial-bankroll 200
+     roll-count stats       | max-bankroll stats 
+    ------------------------+------------------------
+             q0:         23 |         q0:        200 
+           q0.1:         47 |       q0.1:        200 
+           q0.2:         67 |       q0.2:        200 
+           q0.3:         86 |       q0.3:        209 
+           q0.4:        121 |       q0.4:        241 
+           q0.5:        159 |       q0.5:        284 
+           q0.6:        259 |       q0.6:        339 
+           q0.7:        403 |       q0.7:        448 
+           q0.8:       1089 |       q0.8:        758 
+           q0.9:       3663 |       q0.9:       1419 
+             q1:     152810 |         q1:      13829 
+    bash$ 
+
+You can see that you'll double your money at some point
+during this kind of 1x, 2x, 3x odds play at a $5-minimum bet table
+more than 30% of the time (because max-bankroll quantile 0.7 is over 400).
+
+### Plot Display
 
 For visualization, there is some Julia code that can be
 adapted and pasted into a persistent Julia interpreter session
