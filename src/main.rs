@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use log::{info, warn};
 use noisy_float::types::{n64, N64};
+use prettytable::{format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR, row, Table};
 use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
@@ -175,24 +176,46 @@ fn main() -> Result<()> {
         max_bankrolls.push(max_bankroll);
     }
     if cli.n_trials > 1 {
+        let mut table = Table::new();
         let q = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
             .into_iter()
             .map(n64)
             .collect::<Vec<_>>();
-        println!("roll-count stats:");
+        table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+        table.set_titles(row!["roll-count stats", "max-bankroll stats"]);
         quantiles(&mut roll_counts, &q)
             .iter()
-            .for_each(|(quantile, v)| {
+            .zip(quantiles(&mut max_bankrolls, &q).iter())
+            .map(|((quantile, rc_v), (quantile2, mb_v))| {
+                assert_eq!(quantile, quantile2);
                 let q = format!("q{quantile}");
-                println!("{:>10}: {:>10?}", q, v);
+                row![
+                    format!("{:>10}: {:>10?}", q, rc_v),
+                    format!("{:>10}: {:>10?}", q, mb_v)
+                ]
+            })
+            .for_each(|row| {
+                table.add_row(row);
             });
-        println!("max_bankroll stats:");
+        table.printstd();
+        /*
+        let mut mb_text = format!("max_bankroll stats:\n");
         quantiles(&mut max_bankrolls, &q)
             .iter()
             .for_each(|(quantile, v)| {
                 let q = format!("q{quantile}");
-                println!("{:>10}: {:>10?}", q, v);
+                mb_text += &format!("{:>10}: {:>10?}\n", q, v);
             });
+        let mut cols = Colonnade::new(2, 80).context("creating colonade object")?;
+        cols.fixed_width(38).context("setting column widths")?;
+        cols.spaces_between_rows(1);
+        for line in cols
+            .tabulate(&[[rc_text, mb_text]])
+            .context("formatting columns")?
+        {
+            println!("{line}");
+        }
+        */
     }
     if let Some(fname) = cli.csv_output_file {
         if let Some(label) = cli.plot_label {
